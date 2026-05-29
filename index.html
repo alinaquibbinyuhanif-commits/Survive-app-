@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Survive & Save</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1a1a1e;
+            --primary: #4ade80;
+            --secondary: #38bdf8;
+            --text: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --danger: #f87171;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text); padding: 16px; padding-bottom: 40px; }
+        header { margin-bottom: 24px; text-align: center; }
+        header h1 { font-size: 1.5rem; color: var(--primary); }
+        header p { font-size: 0.85rem; color: var(--text-muted); }
+        .dashboard { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 24px; }
+        .card { background: var(--card-bg); padding: 16px; border-radius: 12px; border: 1px solid #27272a; }
+        .card-title { font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+        .card-value { font-size: 1.8rem; font-weight: bold; }
+        .survival-card { border-left: 4px solid var(--secondary); }
+        .savings-card { border-left: 4px solid var(--primary); }
+        .allowance-card { background: linear-gradient(135deg, #1e1b4b, #311042); text-align: center; border: 1px solid #4338ca; }
+        .allowance-card .card-value { color: #c084fc; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-muted); }
+        input { width: 100%; padding: 12px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; color: white; font-size: 1rem; }
+        button { width: 100%; padding: 14px; background: var(--primary); border: none; border-radius: 8px; color: #09090b; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 8px; }
+        .history-section { margin-top: 24px; }
+        .history-section h3 { font-size: 1rem; margin-bottom: 12px; color: var(--text-muted); }
+        .log-item { background: var(--card-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #27272a; }
+        .log-info span { font-size: 0.75rem; color: var(--text-muted); }
+        .amt-survival { color: var(--secondary); }
+        .amt-savings { color: var(--primary); }
+        .clear-btn { background: transparent; color: var(--danger); border: 1px solid var(--danger); padding: 8px; font-size: 0.8rem; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Survive & Save</h1>
+        <p>Micro-Budgeting Tracker</p>
+    </header>
+
+    <div class="dashboard">
+        <div class="card allowance-card">
+            <div class="card-title">Daily Safe-To-Spend (Next 30 Days)</div>
+            <div id="dailyAllowance" class="card-value">$0.00</div>
+        </div>
+        <div class="card survival-card">
+            <div class="card-title">Survival Fund (70%)</div>
+            <div id="totalSurvival" class="card-value">$0.00</div>
+        </div>
+        <div class="card savings-card">
+            <div class="card-title">Locked Savings (30%)</div>
+            <div id="totalSavings" class="card-value">$0.00</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="form-group">
+            <label for="source">Income Source / Job</label>
+            <input type="text" id="source" placeholder="e.g., Part-time gig">
+        </div>
+        <div class="form-group">
+            <label for="amount">Amount ($)</label>
+            <input type="number" id="amount" step="0.01" placeholder="0.00" inputmode="decimal">
+        </div>
+        <button onclick="addIncome()">Log Income & Auto-Split</button>
+    </div>
+
+    <div class="history-section">
+        <h3>Transaction History</h3>
+        <div id="historyLog"></div>
+    </div>
+
+    <button class="clear-btn" onclick="clearData()">Reset App Data</button>
+
+    <script>
+        let appData = { survivalTotal: 0, savingsTotal: 0, history: [] };
+
+        window.onload = function() {
+            if (localStorage.getItem('surviveSaveData')) {
+                appData = JSON.parse(localStorage.getItem('surviveSaveData'));
+            }
+            updateUI();
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(() => {});
+            }
+        };
+
+        function addIncome() {
+            const sourceInput = document.getElementById('source');
+            const amountInput = document.getElementById('amount');
+            const source = sourceInput.value.trim() || "Unspecified Income";
+            const amount = parseFloat(amountInput.value);
+
+            if (isNaN(amount) || amount <= 0) return alert("Enter a valid amount.");
+
+            appData.survivalTotal += (amount * 0.70);
+            appData.savingsTotal += (amount * 0.30);
+            
+            appData.history.unshift({
+                source, amount,
+                survival: amount * 0.70,
+                savings: amount * 0.30,
+                date: new Date().toLocaleDateString()
+            });
+
+            localStorage.setItem('surviveSaveData', JSON.stringify(appData));
+            updateUI();
+            sourceInput.value = ''; amountInput.value = '';
+        }
+
+        function updateUI() {
+            document.getElementById('totalSurvival').innerText = `$${appData.survivalTotal.toFixed(2)}`;
+            document.getElementById('totalSavings').innerText = `$${appData.savingsTotal.toFixed(2)}`;
+            document.getElementById('dailyAllowance').innerText = `$${(appData.survivalTotal / 30).toFixed(2)}`;
+
+            const logContainer = document.getElementById('historyLog');
+            logContainer.innerHTML = appData.history.length === 0 ? '<p style="color:var(--text-muted);text-align:center;">No entries yet.</p>' : '';
+            
+            appData.history.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'log-item';
+                div.innerHTML = `
+                    <div>
+                        <p>${item.source}</p>
+                        <span>${item.date} • <span class="amt-survival">$${item.survival.toFixed(1)}</span> / <span class="amt-savings">$${item.savings.toFixed(1)}</span></span>
+                    </div>
+                    <div style="font-weight:bold;">+$${item.amount.toFixed(2)}</div>
+                `;
+                logContainer.appendChild(div);
+            });
+        }
+
+        function clearData() {
+            if (confirm("Reset data?")) {
+                localStorage.removeItem('surviveSaveData');
+                appData = { survivalTotal: 0, savingsTotal: 0, history: [] };
+                updateUI();
+            }
+        }
+    </script>
+</body>
+</html>
